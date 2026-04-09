@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Гонки на дороге</title>
+    <style>
+        * {
+            user-select: none;
+            touch-action: manipulation;
+        }
+        body {
+            background: #0a2f1f;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            padding: 10px;
+            font-family: 'Courier New', monospace;
+        }
+        .game-container {
+            background: #2c2c2c;
+            padding: 10px;
+            border-radius: 20px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.3);
+        }
+        canvas {
+            display: block;
+            margin: 0 auto;
+            border-radius: 10px;
+            box-shadow: 0 0 0 3px #f4c542;
+            cursor: pointer;
+        }
+        .info {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 12px;
+            color: #ffd966;
+            font-weight: bold;
+            font-size: 1.2rem;
+            padding: 0 10px;
+        }
+        .controls {
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+            margin-top: 15px;
+        }
+        button {
+            background: #f4c542;
+            border: none;
+            font-size: 1.5rem;
+            font-weight: bold;
+            padding: 10px 20px;
+            border-radius: 40px;
+            width: 80px;
+            box-shadow: 0 4px 0 #a05e15;
+            transition: 0.05s linear;
+            touch-action: manipulation;
+            cursor: pointer;
+        }
+        button:active {
+            transform: translateY(2px);
+            box-shadow: 0 1px 0 #a05e15;
+        }
+        .restart {
+            background: #d64545;
+            color: white;
+            width: auto;
+            padding: 8px 18px;
+            font-size: 1rem;
+        }
+        @media (max-width: 600px) {
+            button { width: 70px; font-size: 1.3rem; }
+            .info { font-size: 1rem; }
+        }
+    </style>
+</head>
+<body>
+<div>
+    <div class="game-container">
+        <canvas id="gameCanvas" width="400" height="600"></canvas>
+        <div class="info">
+            <span>🚗 Счёт: <span id="scoreValue">0</span></span>
+            <span>🏆 Рекорд: <span id="highScoreValue">0</span></span>
+        </div>
+        <div class="controls">
+            <button id="leftBtn">◀ ЛЕВО</button>
+            <button id="rightBtn">ПРАВО ▶</button>
+        </div>
+        <div style="text-align: center; margin-top: 10px;">
+            <button id="restartBtn" class="restart">🔄 Новая игра</button>
+        </div>
+        <div style="text-align: center; margin-top: 8px; font-size: 12px; color: #aaa;">
+            ← →  или кнопки
+        </div>
+    </div>
+</div>
+
+<script>
+    (function(){
+        // ----- НАСТРОЙКИ -----
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const scoreSpan = document.getElementById('scoreValue');
+        const highSpan = document.getElementById('highScoreValue');
+
+        const W = 400, H = 600;
+        const LANE_COUNT = 3;
+        const LANE_WIDTH = W / LANE_COUNT;
+        let player = { lane: 1, width: 40, height: 50 };
+        let enemies = [];
+        let score = 0;
+        let highScore = localStorage.getItem('racingHigh') ? parseInt(localStorage.getItem('racingHigh')) : 0;
+        let gameRunning = true;
+        let spawnCounter = 0;
+        let baseSpeed = 3.5;
+        let currentSpeed = baseSpeed;
+
+        highSpan.innerText = highScore;
+
+        function getLaneX(lane) {
+            return lane * LANE_WIDTH + (LANE_WIDTH/2) - player.width/2;
+        }
+
+        function addEnemy() {
+            let lane = Math.floor(Math.random() * LANE_COUNT);
+            let x = lane * LANE_WIDTH + (LANE_WIDTH/2) - 35/2;
+            enemies.push({
+                x: x,
+                y: -60,
+                width: 35,
+                height: 55,
+                lane: lane
+            });
+        }
+
+        function collide(r1, r2) {
+            return !(r2.x > r1.x + r1.w ||
+                r2.x + r2.w < r1.x ||
+                r2.y > r1.y + r1.h ||
+                r2.y + r2.h < r1.y);
+        }
+
+        function update() {
+            if (!gameRunning) return;
+
+            currentSpeed = baseSpeed + Math.floor(score / 300) * 0.8;
+            if (currentSpeed > 8) currentSpeed = 8;
+
+            if (spawnCounter <= 0) {
+                addEnemy();
+                let delay = Math.max(40, 65 - Math.floor(score / 70));
+                spawnCounter = delay;
+            } else {
+                spawnCounter--;
+            }
+
+            for (let i = 0; i < enemies.length; i++) {
+                enemies[i].y += currentSpeed;
+                if (enemies[i].y > H + 100) {
+                    enemies.splice(i,1);
+                    i--;
+                    score++;
+                    scoreSpan.innerText = score;
+                    if (score > highScore) {
+                        highScore = score;
+                        highSpan.innerText = highScore;
+                        localStorage.setItem('racingHigh', highScore);
+                    }
+                }
+            }
+
+            const playerRect = {
+                x: getLaneX(player.lane),
+                y: H - player.height - 10,
+                w: player.width,
+                h: player.height
+            };
+            for (let i = 0; i < enemies.length; i++) {
+                const e = enemies[i];
+                const enemyRect = {
+                    x: e.x,
+                    y: e.y,
+                    w: e.width,
+                    h: e.height
+                };
+                if (collide(playerRect, enemyRect)) {
+                    gameRunning = false;
+                    break;
+                }
+            }
+        }
+
+        function draw() {
+            ctx.clearRect(0, 0, W, H);
+            ctx.fillStyle = "#1a2a1f";
+            ctx.fillRect(0, 0, W, H);
+            ctx.strokeStyle = "#ffe484";
+            ctx.lineWidth = 5;
+            for (let i = 1; i < LANE_COUNT; i++) {
+                let x = i * LANE_WIDTH;
+                ctx.beginPath();
+                ctx.setLineDash([25, 35]);
+                ctx.moveTo(x, 0);
+                ctx.lineTo(x, H);
+                ctx.stroke();
+            }
+            ctx.setLineDash([]);
+            ctx.strokeStyle = "#f5c542";
+            ctx.lineWidth = 3;
+            ctx.strokeRect(5, 5, W-10, H-10);
+
+            for (let e of enemies) {
+                ctx.fillStyle = "#b22234";
+                ctx.fillRect(e.x, e.y, e.width, e.height);
+                ctx.fillStyle = "#8b0000";
+                ctx.fillRect(e.x+5, e.y+8, e.width-10, 12);
+                ctx.fillStyle = "#2e2e2e";
+                ctx.fillRect(e.x+5, e.y+e.height-18, e.width-10, 10);
+                ctx.fillStyle = "#ffcc66";
+                ctx.fillRect(e.x+3, e.y+5, 6, 6);
+                ctx.fillRect(e.x+e.width-9, e.y+5, 6, 6);
+            }
+
+            const playerX = getLaneX(player.lane);
+            const playerY = H - player.height - 10;
+            ctx.fillStyle = "#3acb5a";
+            ctx.fillRect(playerX, playerY, player.width, player.height);
+            ctx.fillStyle = "#1f7a3a";
+            ctx.fillRect(playerX+8, playerY+10, player.width-16, 12);
+            ctx.fillStyle = "#2c2c2c";
+            ctx.fillRect(playerX+8, playerY+player.height-18, player.width-16, 10);
+            ctx.fillStyle = "#ffff99";
+            ctx.fillRect(playerX+4, playerY+6, 7, 7);
+            ctx.fillRect(playerX+player.width-11, playerY+6, 7, 7);
+
+            if (!gameRunning) {
+                ctx.font = "bold 28monospace";
+                ctx.fillStyle = "#ffa500";
+                ctx.fillText("GAME OVER", W/2-100, H/2-40);
+                ctx.font = "18monospace";
+                ctx.fillStyle = "#dddddd";
+                ctx.fillText("Нажми «Новая игра»", W/2-90, H/2+30);
+            }
+
+            ctx.font = "bold 20monospace";
+            ctx.fillStyle = "#f7e05e";
+            ctx.fillText("SCORE "+score, 15, 40);
+        }
+
+        function restartGame() {
+            gameRunning = true;
+            enemies = [];
+            score = 0;
+            player.lane = 1;
+            currentSpeed = baseSpeed;
+            spawnCounter = 8;
+            scoreSpan.innerText = "0";
+        }
+
+        // ----- ПРОСТЫЕ ФУНКЦИИ ДВИЖЕНИЯ -----
+        function moveLeft() {
+            if (gameRunning && player.lane > 0) {
+                player.lane--;
+            }
+        }
+        function moveRight() {
+            if (gameRunning && player.lane < LANE_COUNT-1) {
+                player.lane++;
+            }
+        }
+
+        // ----- ОБРАБОТЧИКИ (только по одному на кнопку) -----
+        const leftBtn = document.getElementById('leftBtn');
+        const rightBtn = document.getElementById('rightBtn');
+        const restartBtn = document.getElementById('restartBtn');
+
+        leftBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            moveLeft();
+        });
+        rightBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            moveRight();
+        });
+        restartBtn.addEventListener('click', () => {
+            restartGame();
+        });
+
+        // Стрелки клавиатуры
+        window.addEventListener('keydown', (e) => {
+            if (e.key === 'ArrowLeft') {
+                e.preventDefault();
+                moveLeft();
+            } else if (e.key === 'ArrowRight') {
+                e.preventDefault();
+                moveRight();
+            }
+        });
+
+        // Игровой цикл
+        function gameLoop() {
+            update();
+            draw();
+            requestAnimationFrame(gameLoop);
+        }
+
+        restartGame();
+        addEnemy();
+        gameLoop();
+    })();
+</script>
+</body>
+</html>
